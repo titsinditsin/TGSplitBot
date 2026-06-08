@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="../TGBotClassLibrary/TGBotClassLibrary.csproj" />
+  <Project Path="SplitTGBot.csproj" />
+</Solution>
