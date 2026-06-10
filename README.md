@@ -37,13 +37,15 @@ git clone https://github.com/твой-логин/SplitTGBot.git
 cd SplitTGBot
 ```
 
-###2. База данных
+##2. База данных
 Установите PostgreSQL и создайте базу (например, splitbotdb).
 Затем выполните скрипт для создания таблиц:
 
 bash
+```
 psql -U postgres -d splitbotdb -f schema.sql
-3. Переменные окружения
+```
+##3. Переменные окружения
 Задайте секреты через переменные окружения (Windows):
 
 ```cmd
