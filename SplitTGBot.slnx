@@ -1,4 +1,5 @@
 <Solution>
-  <Project Path="../TGBotClassLibrary/TGBotClassLibrary.csproj" />
-  <Project Path="SplitTGBot.csproj" />
+  <Project Path="SplitBotTests/SplitBotTests.csproj" Id="0c2bd5e6-13e8-4f06-955c-e7e354b1f570" />
+  <Project Path="TGBotClassLibrary/TGBotClassLibrary.csproj" />
+  <Project Path="SplitTGBot/SplitTGBot.csproj" />
 </Solution>
