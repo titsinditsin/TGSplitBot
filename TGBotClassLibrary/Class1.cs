@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using Telegram.Bot.Types;
 
 namespace TGBotClassLibrary
@@ -74,16 +74,62 @@ namespace TGBotClassLibrary
                 return new ParsedCommand { CommandType = "unknown" };
             }
 
-            string[] parts = text.Split(' ', 2);
+            string[] parts = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             string cmd = parts[0].ToLower();
 
             return cmd switch
             {
                 "/start" => new ParsedCommand { CommandType = "start" },
                 "/init" => new ParsedCommand { CommandType = "init" },
-                "/join" => new ParsedCommand { CommandType = "join" },
+                "/join" => ParseJoinCommand(parts),
+                "/info" => new ParsedCommand { CommandType = "info" },
+                "/group" => ParseGroupCommand(parts),
                 _ => new ParsedCommand { CommandType = "unknown" }
             };
+        }
+
+        /// <summary>
+        /// Разбирает команду /join.
+        /// В групповом чате: /join (без параметров)
+        /// В ЛС: /join НазваниеГруппы ИмяУчастника
+        /// </summary>
+        private static ParsedCommand ParseJoinCommand(string[] parts)
+        {
+            var result = new ParsedCommand { CommandType = "join" };
+
+            if (parts.Length >= 3)
+            {
+                result.Parameters["group_name"] = parts[1];
+                result.Parameters["member_name"] = parts[2];
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Разбирает команду /group.
+        /// Формат: /group НазваниеГруппы Участник1 Участник2 ...
+        /// </summary>
+        private static ParsedCommand ParseGroupCommand(string[] parts)
+        {
+            var result = new ParsedCommand { CommandType = "group" };
+
+            if (parts.Length < 2)
+            {
+                result.Parameters["error"] = "no_group_name";
+                return result;
+            }
+
+            result.Parameters["group_name"] = parts[1];
+
+            var members = new List<string>();
+            for (int i = 2; i < parts.Length; i++)
+            {
+                members.Add(parts[i]);
+            }
+            result.Parameters["members"] = members;
+
+            return result;
         }
     }
 }

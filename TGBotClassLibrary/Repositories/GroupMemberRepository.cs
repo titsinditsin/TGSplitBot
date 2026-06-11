@@ -56,5 +56,19 @@ namespace TGBotClassLibrary.Repositories.GroupMemberRepository
                 );";
             return _connection.ExecuteScalar<bool>(sql, new { GroupId = groupId, UserId = userId });
         }
+
+        /// <summary>
+        /// Проверяет, есть ли в группе участник с указанным именем (без учёта регистра).
+        /// </summary>
+        public bool MemberNameExistsInGroup(long groupId, string memberName)
+        {
+            const string sql = @"
+                SELECT EXISTS (
+                    SELECT 1 FROM group_members gm
+                    INNER JOIN users u ON gm.u_id = u.u_id
+                    WHERE gm.g_id = @GroupId AND LOWER(u.u_name) = LOWER(@MemberName)
+                );";
+            return _connection.ExecuteScalar<bool>(sql, new { GroupId = groupId, MemberName = memberName });
+        }
     }
 }
