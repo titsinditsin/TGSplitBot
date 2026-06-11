@@ -6,6 +6,9 @@ using TGBotClassLibrary;
 using TGBotClassLibrary.Repositories.GroupMemberRepository;
 using TGBotClassLibrary.Repositories.GroupRepository;
 using TGBotClassLibrary.Repositories.UserRepository;
+using TGBotClassLibrary.Repositories.ExpensesRepository;
+using TGBotClassLibrary.Repositories.ExpenseParticipantsRepository;
+using System.Linq;
 
 string connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION");
 if (string.IsNullOrEmpty(connectionString))
@@ -54,6 +57,8 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
     var userRepo = new UserRepository(connection);
     var groupRepo = new GroupRepository(connection);
     var memberRepo = new GroupMemberRepository(connection);
+    var expensesRepo = new ExpensesRepository(connection);
+    var participantsRepo = new ExpenseParticipantsRepository(connection);
 
     switch (parsedCommand.CommandType)
     {
@@ -310,6 +315,108 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                 group.Id,
                 response,
                 cancellationToken: cancellationToken);
+            break;
+
+        case "paid":
+            var args = (string[])parsedCommand.Parameters["args"];
+            userRepo.AddOrUpdateUser(user.Id, user.Name);
+
+            if (group.GType == ChatType.Group.ToString() || group.GType == ChatType.Supergroup.ToString())
+            {
+                // Режим группового чата: /paid Сумма Описание
+                if (!groupRepo.Exists(group.Id))
+                {
+                    await client.SendMessage(group.Id, "Бот не инициализирован в этой группе. Сначала выполните команду /init.", cancellationToken: cancellationToken);
+                    break;
+                }
+
+                if (args.Length < 1 || !decimal.TryParse(args[0], out decimal amount) || amount <= 0)
+                {
+                    await client.SendMessage(group.Id, "Формат: /paid Сумма Описание\nПример: /paid 500 Пицца", cancellationToken: cancellationToken);
+                    break;
+                }
+
+                string description = args.Length > 1 ? string.Join(" ", args.Skip(1)) : "Без описания";
+
+                var members = memberRepo.GetMembers(group.Id).ToList();
+                if (members.Count == 0)
+                {
+                    await client.SendMessage(group.Id, "В группе нет участников. Сначала кто-то должен написать /join.", cancellationToken: cancellationToken);
+                    break;
+                }
+
+                long expenseId = expensesRepo.AddExpense(group.Id, amount, description);
+                decimal splitAmount = amount / members.Count;
+
+                foreach (var member in members)
+                {
+                    decimal paid = member.UserId == user.Id ? amount : 0;
+                    decimal owed = splitAmount;
+                    participantsRepo.AddParticipant(expenseId, member.UserId, paid, owed);
+                }
+
+                await client.SendMessage(
+                    group.Id,
+                    $"💰 Расход добавлен: {amount} руб. ({description})\n" +
+                    $"Оплатил(а): {user.Name}\n" +
+                    $"Поделено на {members.Count} участников (по {splitAmount:F2} руб.).",
+                    cancellationToken: cancellationToken);
+            }
+            else if (group.GType == ChatType.Private.ToString())
+            {
+                // Режим ЛС: /paid НазваниеГруппы КтоЗаплатил Сумма Описание
+                if (args.Length < 3)
+                {
+                    await client.SendMessage(
+                        group.Id,
+                        "В личных сообщениях формат: /paid НазваниеГруппы КтоЗаплатил Сумма Описание\nПример: /paid Поездка Ivan 500 Бензин",
+                        cancellationToken: cancellationToken);
+                    break;
+                }
+
+                string pGroupName = args[0];
+                string payerName = args[1];
+
+                if (!decimal.TryParse(args[2], out decimal pAmount) || pAmount <= 0)
+                {
+                    await client.SendMessage(group.Id, "Сумма должна быть положительным числом.", cancellationToken: cancellationToken);
+                    break;
+                }
+
+                string pDesc = args.Length > 3 ? string.Join(" ", args.Skip(3)) : "Без описания";
+
+                long? foundGroupId = groupRepo.FindByNameAndMember(pGroupName, user.Id);
+                if (!foundGroupId.HasValue)
+                {
+                    await client.SendMessage(group.Id, $"Группа \"{pGroupName}\" не найдена среди ваших групп.", cancellationToken: cancellationToken);
+                    break;
+                }
+
+                long? payerId = userRepo.FindByName(payerName);
+                if (!payerId.HasValue || !memberRepo.IsMember(foundGroupId.Value, payerId.Value))
+                {
+                    await client.SendMessage(group.Id, $"Участник \"{payerName}\" не найден в группе \"{pGroupName}\".", cancellationToken: cancellationToken);
+                    break;
+                }
+
+                var pMembers = memberRepo.GetMembers(foundGroupId.Value).ToList();
+                long pExpenseId = expensesRepo.AddExpense(foundGroupId.Value, pAmount, pDesc);
+                decimal pSplitAmount = pAmount / pMembers.Count;
+
+                foreach (var member in pMembers)
+                {
+                    decimal paid = member.UserId == payerId.Value ? pAmount : 0;
+                    decimal owed = pSplitAmount;
+                    participantsRepo.AddParticipant(pExpenseId, member.UserId, paid, owed);
+                }
+
+                await client.SendMessage(
+                    group.Id,
+                    $"💰 Расход добавлен в виртуальную группу \"{pGroupName}\": {pAmount} руб. ({pDesc})\n" +
+                    $"Оплатил(а): {payerName}\n" +
+                    $"Поделено на {pMembers.Count} участников (по {pSplitAmount:F2} руб.).",
+                    cancellationToken: cancellationToken);
+            }
             break;
 
         default:

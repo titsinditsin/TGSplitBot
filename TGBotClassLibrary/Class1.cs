@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Telegram.Bot.Types;
 
 namespace TGBotClassLibrary
@@ -84,8 +85,20 @@ namespace TGBotClassLibrary
                 "/join" => ParseJoinCommand(parts),
                 "/info" => new ParsedCommand { CommandType = "info" },
                 "/group" => ParseGroupCommand(parts),
+                "/paid" => ParsePaidCommand(parts),
                 _ => new ParsedCommand { CommandType = "unknown" }
             };
+        }
+
+        /// <summary>
+        /// Разбирает команду /paid.
+        /// Возвращает все аргументы команды для дальнейшей обработки в зависимости от типа чата.
+        /// </summary>
+        private static ParsedCommand ParsePaidCommand(string[] parts)
+        {
+            var result = new ParsedCommand { CommandType = "paid" };
+            result.Parameters["args"] = parts.Skip(1).ToArray();
+            return result;
         }
 
         /// <summary>
