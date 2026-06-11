@@ -40,5 +40,23 @@ namespace TGBotClassLibrary.Repositories.ExpenseParticipantsRepository
             const string sql = "SELECT u_id, paid, owed FROM expense_participants WHERE e_id = @ExpenseId;";
             return _connection.Query<(long, decimal, decimal)>(sql, new { ExpenseId = expenseId });
         }
+
+        /// <summary>
+        /// Возвращает общий баланс по каждому участнику группы (сумма paid - сумма owed).
+        /// Положительный баланс означает, что пользователю должны. Отрицательный - он должен.
+        /// </summary>
+        public IEnumerable<UserBalance> GetBalancesByGroup(long groupId)
+        {
+            const string sql = @"
+                SELECT u.u_id as UserId, u.u_name as UserName, COALESCE(SUM(ep.paid - ep.owed), 0) as Balance
+                FROM users u
+                INNER JOIN group_members gm ON u.u_id = gm.u_id
+                LEFT JOIN expenses e ON e.g_id = gm.g_id
+                LEFT JOIN expense_participants ep ON ep.e_id = e.e_id AND ep.u_id = u.u_id
+                WHERE gm.g_id = @GroupId
+                GROUP BY u.u_id, u.u_name;";
+            
+            return _connection.Query<UserBalance>(sql, new { GroupId = groupId });
+        }
     }
 }

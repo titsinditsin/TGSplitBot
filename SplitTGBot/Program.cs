@@ -419,6 +419,193 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
             }
             break;
 
+        case "payfor":
+            var pfArgs = (string[])parsedCommand.Parameters["args"];
+            userRepo.AddOrUpdateUser(user.Id, user.Name);
+
+            if (group.GType == ChatType.Group.ToString() || group.GType == ChatType.Supergroup.ToString())
+            {
+                if (!groupRepo.Exists(group.Id)) break;
+                if (pfArgs.Length < 2)
+                {
+                    await client.SendMessage(group.Id, "Формат: /payfor ЗаКого Сумма Описание\nПример: /payfor Ivan 300 Кофе", cancellationToken: cancellationToken);
+                    break;
+                }
+                string targetName = pfArgs[0];
+                if (!decimal.TryParse(pfArgs[1], out decimal amount) || amount <= 0) break;
+                string description = pfArgs.Length > 2 ? string.Join(" ", pfArgs.Skip(2)) : "Без описания";
+
+                long? targetId = userRepo.FindByName(targetName);
+                if (!targetId.HasValue || !memberRepo.IsMember(group.Id, targetId.Value))
+                {
+                    await client.SendMessage(group.Id, $"Участник \"{targetName}\" не найден в группе.", cancellationToken: cancellationToken);
+                    break;
+                }
+
+                long expenseId = expensesRepo.AddExpense(group.Id, amount, description);
+                participantsRepo.AddParticipant(expenseId, user.Id, amount, 0);
+                if (user.Id != targetId.Value) {
+                    participantsRepo.AddParticipant(expenseId, targetId.Value, 0, amount);
+                } else {
+                    participantsRepo.AddParticipant(expenseId, targetId.Value, amount, amount);
+                }
+
+                await client.SendMessage(group.Id, $"💰 Вы оплатили {amount} руб. за {targetName} ({description}).", cancellationToken: cancellationToken);
+            }
+            else if (group.GType == ChatType.Private.ToString())
+            {
+                if (pfArgs.Length < 4)
+                {
+                    await client.SendMessage(group.Id, "В ЛС формат: /payfor НазваниеГруппы КтоЗаплатил ЗаКого Сумма Описание\nПример: /payfor Поездка Ivan Anna 300 Кофе", cancellationToken: cancellationToken);
+                    break;
+                }
+                string pfGroupName = pfArgs[0];
+                string payerName = pfArgs[1];
+                string targetName = pfArgs[2];
+                if (!decimal.TryParse(pfArgs[3], out decimal amount) || amount <= 0) break;
+                string description = pfArgs.Length > 4 ? string.Join(" ", pfArgs.Skip(4)) : "Без описания";
+
+                long? foundGroupId = groupRepo.FindByNameAndMember(pfGroupName, user.Id);
+                if (!foundGroupId.HasValue) break;
+                
+                long? payerId = userRepo.FindByName(payerName);
+                long? targetId = userRepo.FindByName(targetName);
+                if (!payerId.HasValue || !targetId.HasValue) break;
+
+                long expenseId = expensesRepo.AddExpense(foundGroupId.Value, amount, description);
+                participantsRepo.AddParticipant(expenseId, payerId.Value, amount, 0);
+                if (payerId.Value != targetId.Value) {
+                    participantsRepo.AddParticipant(expenseId, targetId.Value, 0, amount);
+                } else {
+                    participantsRepo.AddParticipant(expenseId, targetId.Value, amount, amount);
+                }
+
+                await client.SendMessage(group.Id, $"💰 В группе \"{pfGroupName}\" {payerName} оплатил(а) {amount} руб. за {targetName} ({description}).", cancellationToken: cancellationToken);
+            }
+            break;
+
+        case "return":
+            var rArgs = (string[])parsedCommand.Parameters["args"];
+            userRepo.AddOrUpdateUser(user.Id, user.Name);
+
+            if (group.GType == ChatType.Group.ToString() || group.GType == ChatType.Supergroup.ToString())
+            {
+                if (!groupRepo.Exists(group.Id)) break;
+                if (rArgs.Length < 2)
+                {
+                    await client.SendMessage(group.Id, "Формат: /return Кому Сумма\nПример: /return Danil 500", cancellationToken: cancellationToken);
+                    break;
+                }
+                string targetName = rArgs[0];
+                if (!decimal.TryParse(rArgs[1], out decimal amount) || amount <= 0) break;
+
+                long? targetId = userRepo.FindByName(targetName);
+                if (!targetId.HasValue || !memberRepo.IsMember(group.Id, targetId.Value)) break;
+
+                long expenseId = expensesRepo.AddExpense(group.Id, amount, "Возврат долга");
+                participantsRepo.AddParticipant(expenseId, user.Id, amount, 0);
+                participantsRepo.AddParticipant(expenseId, targetId.Value, 0, amount);
+
+                await client.SendMessage(group.Id, $"💸 Вы вернули {amount} руб. пользователю {targetName}.", cancellationToken: cancellationToken);
+            }
+            else if (group.GType == ChatType.Private.ToString())
+            {
+                if (rArgs.Length < 4)
+                {
+                    await client.SendMessage(group.Id, "В ЛС формат: /return НазваниеГруппы КтоВозвращает Кому Сумма\nПример: /return Поездка Ivan Danil 500", cancellationToken: cancellationToken);
+                    break;
+                }
+                string rGroupName = rArgs[0];
+                string payerName = rArgs[1];
+                string targetName = rArgs[2];
+                if (!decimal.TryParse(rArgs[3], out decimal amount) || amount <= 0) break;
+
+                long? foundGroupId = groupRepo.FindByNameAndMember(rGroupName, user.Id);
+                if (!foundGroupId.HasValue) break;
+
+                long? payerId = userRepo.FindByName(payerName);
+                long? targetId = userRepo.FindByName(targetName);
+                if (!payerId.HasValue || !targetId.HasValue) break;
+
+                long expenseId = expensesRepo.AddExpense(foundGroupId.Value, amount, "Возврат долга");
+                participantsRepo.AddParticipant(expenseId, payerId.Value, amount, 0);
+                participantsRepo.AddParticipant(expenseId, targetId.Value, 0, amount);
+
+                await client.SendMessage(group.Id, $"💸 В группе \"{rGroupName}\" {payerName} вернул(а) {amount} руб. пользователю {targetName}.", cancellationToken: cancellationToken);
+            }
+            break;
+
+        case "balance":
+            var bArgs = (string[])parsedCommand.Parameters["args"];
+            long balanceGroupId = 0;
+            string bGroupName = "";
+
+            if (group.GType == ChatType.Group.ToString() || group.GType == ChatType.Supergroup.ToString())
+            {
+                if (!groupRepo.Exists(group.Id)) break;
+                balanceGroupId = group.Id;
+                bGroupName = group.GName;
+            }
+            else if (group.GType == ChatType.Private.ToString())
+            {
+                if (bArgs.Length < 1)
+                {
+                    await client.SendMessage(group.Id, "В ЛС формат: /balance НазваниеГруппы", cancellationToken: cancellationToken);
+                    break;
+                }
+                bGroupName = bArgs[0];
+                long? foundGroupId = groupRepo.FindByNameAndMember(bGroupName, user.Id);
+                if (!foundGroupId.HasValue)
+                {
+                    await client.SendMessage(group.Id, $"Группа \"{bGroupName}\" не найдена.", cancellationToken: cancellationToken);
+                    break;
+                }
+                balanceGroupId = foundGroupId.Value;
+            }
+
+            if (balanceGroupId == 0) break;
+
+            var balances = participantsRepo.GetBalancesByGroup(balanceGroupId).ToList();
+            var expenses = expensesRepo.GetExpensesByGroup(balanceGroupId).ToList();
+            decimal totalExpenses = expenses.Where(e => e.Message != "Возврат долга").Sum(e => e.Cost);
+
+            string bText = $"📊 **Баланс группы «{bGroupName}»**\n━━━━━━━━━━━━━━━━━━━━\n💸 **Всего потрачено:** {totalExpenses:F2} руб.\n\n👤 **Текущий статус:**\n";
+            
+            foreach (var b in balances)
+            {
+                if (b.Balance > 0)
+                {
+                    bText += $"🟢 {b.UserName}: +{b.Balance:F2} руб. *(ему должны)*\n";
+                }
+                else if (b.Balance < 0)
+                {
+                    bText += $"🔴 {b.UserName}: {b.Balance:F2} руб. *(он должен)*\n";
+                }
+                else
+                {
+                    bText += $"⚪️ {b.UserName}: 0 руб. *(в расчете)*\n";
+                }
+            }
+
+            bText += "\n🔄 **Кто кому переводит:**\n";
+            
+            var transfers = DebtOptimizer.Optimize(balances);
+
+            if (transfers.Count == 0)
+            {
+                bText += "Все долги погашены! 🎉\n";
+            }
+            else
+            {
+                foreach (var transfer in transfers)
+                {
+                    bText += $"💸 {transfer.FromUserName} ➡️ {transfer.ToUserName}: {transfer.Amount:F2} руб.\n";
+                }
+            }
+
+            await client.SendMessage(group.Id, bText, parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown, cancellationToken: cancellationToken);
+            break;
+
         default:
             // Игнорируем неизвестные команды и обычный текст
             break;

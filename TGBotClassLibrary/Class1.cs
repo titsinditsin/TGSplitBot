@@ -55,6 +55,26 @@ namespace TGBotClassLibrary
     }
 
     /// <summary>
+    /// Модель для хранения текущего баланса пользователя.
+    /// </summary>
+    public class UserBalance
+    {
+        public long UserId { get; set; }
+        public string UserName { get; set; } = string.Empty;
+        public decimal Balance { get; set; }
+    }
+
+    /// <summary>
+    /// Модель для описания перевода долга от одного пользователя другому.
+    /// </summary>
+    public class DebtTransfer
+    {
+        public string FromUserName { get; set; } = string.Empty;
+        public string ToUserName { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+    }
+
+    /// <summary>
     /// Результат парсинга сообщения.
     /// </summary>
     public class ParsedCommand
@@ -86,8 +106,32 @@ namespace TGBotClassLibrary
                 "/info" => new ParsedCommand { CommandType = "info" },
                 "/group" => ParseGroupCommand(parts),
                 "/paid" => ParsePaidCommand(parts),
+                "/payfor" => ParsePayforCommand(parts),
+                "/return" => ParseReturnCommand(parts),
+                "/balance" => ParseBalanceCommand(parts),
                 _ => new ParsedCommand { CommandType = "unknown" }
             };
+        }
+
+        private static ParsedCommand ParsePayforCommand(string[] parts)
+        {
+            var result = new ParsedCommand { CommandType = "payfor" };
+            result.Parameters["args"] = parts.Skip(1).ToArray();
+            return result;
+        }
+
+        private static ParsedCommand ParseReturnCommand(string[] parts)
+        {
+            var result = new ParsedCommand { CommandType = "return" };
+            result.Parameters["args"] = parts.Skip(1).ToArray();
+            return result;
+        }
+
+        private static ParsedCommand ParseBalanceCommand(string[] parts)
+        {
+            var result = new ParsedCommand { CommandType = "balance" };
+            result.Parameters["args"] = parts.Skip(1).ToArray();
+            return result;
         }
 
         /// <summary>
