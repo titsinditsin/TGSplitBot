@@ -1,14 +1,15 @@
+using System.Linq;
+using System.Text;
 using Npgsql;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using TGBotClassLibrary;
+using TGBotClassLibrary.Repositories.ExpenseParticipantsRepository;
+using TGBotClassLibrary.Repositories.ExpensesRepository;
 using TGBotClassLibrary.Repositories.GroupMemberRepository;
 using TGBotClassLibrary.Repositories.GroupRepository;
 using TGBotClassLibrary.Repositories.UserRepository;
-using TGBotClassLibrary.Repositories.ExpensesRepository;
-using TGBotClassLibrary.Repositories.ExpenseParticipantsRepository;
-using System.Linq;
 
 string connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION");
 if (string.IsNullOrEmpty(connectionString))
@@ -74,6 +75,7 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                 cancellationToken: cancellationToken);
             break;
 
+
         case "init":
             // Инициализация работает только в групповых чатах
             if (group.GType == ChatType.Group.ToString() || group.GType == ChatType.Supergroup.ToString())
@@ -94,6 +96,7 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                     cancellationToken: cancellationToken);
             }
             break;
+
 
         case "join":
             if (group.GType == ChatType.Group.ToString() || group.GType == ChatType.Supergroup.ToString())
@@ -187,6 +190,7 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
             }
             break;
 
+
         case "info":
             await client.SendMessage(
                 group.Id,
@@ -222,6 +226,7 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                 parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown,
                 cancellationToken: cancellationToken);
             break;
+
 
         case "group":
             // Создание виртуальной группы работает только в личных сообщениях
@@ -316,6 +321,7 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                 response,
                 cancellationToken: cancellationToken);
             break;
+
 
         case "paid":
             var args = (string[])parsedCommand.Parameters["args"];
@@ -419,6 +425,7 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
             }
             break;
 
+
         case "payfor":
             var pfArgs = (string[])parsedCommand.Parameters["args"];
             userRepo.AddOrUpdateUser(user.Id, user.Name);
@@ -484,6 +491,7 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
             }
             break;
 
+
         case "return":
             var rArgs = (string[])parsedCommand.Parameters["args"];
             userRepo.AddOrUpdateUser(user.Id, user.Name);
@@ -534,6 +542,7 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                 await client.SendMessage(group.Id, $"💸 В группе \"{rGroupName}\" {payerName} вернул(а) {amount} руб. пользователю {targetName}.", cancellationToken: cancellationToken);
             }
             break;
+
 
         case "balance":
             var bArgs = (string[])parsedCommand.Parameters["args"];
@@ -606,9 +615,34 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
             await client.SendMessage(group.Id, bText, parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown, cancellationToken: cancellationToken);
             break;
 
+
+        case "history":
+            var hArgs = (string[])parsedCommand.Parameters["args"];
+            var history = participantsRepo.GetUserHistory(group.Id, user.Id);
+            string hUserName = "";
+            string hText = "";
+            if (!history.Any())
+            {
+                hText = $"У вас нет трат";
+            }
+            else
+            {
+                var sb = new StringBuilder($"Твоя история (всего записей: {history.Count()}):\n\n");
+                foreach (var item in history)
+                {
+                    sb.AppendLine($"📅 {item.e_time:dd.MM.yyyy HH:mm} | 🛒 {item.e_message}");
+                    sb.AppendLine($"   Заплатил: {item.paid} | Должен: {item.owed}\n");
+                }
+                hText = sb.ToString();
+            }
+            await client.SendMessage(group.Id, hText, parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown, cancellationToken: cancellationToken);
+            break;
+
+
         default:
             // Игнорируем неизвестные команды и обычный текст
             break;
+        
     }
 }
 

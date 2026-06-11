@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Dapper;
 using Npgsql;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace TGBotClassLibrary.Repositories.ExpenseParticipantsRepository
 {
@@ -57,6 +58,12 @@ namespace TGBotClassLibrary.Repositories.ExpenseParticipantsRepository
                 GROUP BY u.u_id, u.u_name;";
             
             return _connection.Query<UserBalance>(sql, new { GroupId = groupId });
+        }
+        public IEnumerable<UserHistoryItem> GetUserHistory(long groupId, long userId)
+        {
+            const string sql = @"SELECT paid, owed, e_message, e_time  FROM expense_participants JOIN expenses ON expenses.e_id =
+  expense_participants.e_id WHERE g_id = @group_id AND u_id = @userId;";
+            return _connection.Query<UserHistoryItem>(sql, new { group_id = groupId, userId = userId }); ;
         }
     }
 }
