@@ -217,7 +217,12 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                 "/info — эта инструкция\n" +
                 "/init — активировать бота в групповом чате\n" +
                 "/join — присоединиться (в группе) или добавить участника (в ЛС)\n" +
-                "/group — создать виртуальную группу в ЛС\n\n" +
+                "/group — создать виртуальную группу в ЛС\n" +
+                "/paid — добавить расход\n" +
+                "/payfor — оплатить за другого участника\n" +
+                "/return — вернуть долг\n" +
+                "/balance — показать баланс и переводы\n" +
+                "/history — показать историю расходов\n\n" +
                 "*⚠️ Важно:*\n" +
                 "• /init работает только в групповых чатах\n" +
                 "• /group и /join с параметрами работают только в ЛС\n" +
@@ -634,7 +639,6 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
         case "history":
             var hArgs = (string[])parsedCommand.Parameters["args"];
             var history = participantsRepo.GetUserHistory(group.Id, user.Id);
-            string hUserName = "";
             string hText = "";
             if (group.GType == ChatType.Group.ToString() || group.GType == ChatType.Supergroup.ToString())
             {
