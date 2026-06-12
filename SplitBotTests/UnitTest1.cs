@@ -4,6 +4,8 @@ using System.Data;
 using TGBotClassLibrary.Repositories.GroupMemberRepository;
 using TGBotClassLibrary.Repositories.GroupRepository;
 using TGBotClassLibrary.Repositories.UserRepository;
+using TGBotClassLibrary.Repositories.ExpensesRepository;
+using TGBotClassLibrary.Repositories.ExpenseParticipantsRepository;
 using Xunit;
 
 namespace TGBotClassLibrary.Tests
@@ -161,6 +163,70 @@ namespace TGBotClassLibrary.Tests
             Assert.Equal(2, members.Count);
             Assert.Contains(members, m => m.UserId == 1 && m.UserName == "Alice");
             Assert.Contains(members, m => m.UserId == 2 && m.UserName == "Bob");
+        }
+    }
+    public class ExpenseParticipantsRepositoryTests : BaseTest
+    {
+        protected override async Task CreateSchemaAsync()
+        {
+            await Connection.ExecuteAsync(@"
+                CREATE TABLE users (
+                    u_id BIGINT PRIMARY KEY,
+                    u_name VARCHAR(255) NOT NULL
+                );
+                CREATE TABLE groups (
+                    g_id BIGINT PRIMARY KEY,
+                    g_type VARCHAR(50),
+                    g_name VARCHAR(255)
+                );
+                CREATE TABLE group_members (
+                    g_id BIGINT,
+                    u_id BIGINT,
+                    PRIMARY KEY (g_id, u_id)
+                );
+                CREATE TABLE expenses (
+                    e_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    g_id BIGINT,
+                    e_cost DECIMAL(18, 2),
+                    e_message TEXT,
+                    e_time DATETIME DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE TABLE expense_participants (
+                    e_id INTEGER,
+                    u_id BIGINT,
+                    paid DECIMAL(18, 2),
+                    owed DECIMAL(18, 2),
+                    PRIMARY KEY (e_id, u_id)
+                );");
+        }
+
+        [Fact]
+        public void GetUserHistory_ReturnsCorrectHistory()
+        {
+            // Arrange
+            var userRepo = new UserRepository(Connection);
+            var groupRepo = new GroupRepository(Connection);
+            var memberRepo = new GroupMemberRepository(Connection);
+            var expensesRepo = new ExpensesRepository(Connection);
+            var participantsRepo = new ExpenseParticipantsRepository(Connection);
+
+            long userId = 100;
+            long groupId = 10;
+            userRepo.AddOrUpdateUser(userId, "Danil");
+            groupRepo.EnsureGroupExists(groupId, "Group", "Test Group");
+            memberRepo.AddMember(groupId, userId);
+
+            long expenseId = expensesRepo.AddExpense(groupId, 500, "Pizza");
+            participantsRepo.AddParticipant(expenseId, userId, 500, 250);
+
+            // Act
+            var history = participantsRepo.GetUserHistory(groupId, userId).ToList();
+
+            // Assert
+            Assert.Single(history);
+            Assert.Equal("Pizza", history[0].e_message);
+            Assert.Equal(500, history[0].paid);
+            Assert.Equal(250, history[0].owed);
         }
     }
 }

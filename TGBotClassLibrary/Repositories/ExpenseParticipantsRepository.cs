@@ -1,7 +1,7 @@
 using System.Collections.Generic;
+using System.Data;
 using Dapper;
 using Npgsql;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace TGBotClassLibrary.Repositories.ExpenseParticipantsRepository
 {
@@ -10,9 +10,9 @@ namespace TGBotClassLibrary.Repositories.ExpenseParticipantsRepository
     /// </summary>
     public class ExpenseParticipantsRepository
     {
-        private readonly NpgsqlConnection _connection;
+        private readonly IDbConnection _connection;
 
-        public ExpenseParticipantsRepository(NpgsqlConnection connection)
+        public ExpenseParticipantsRepository(IDbConnection connection)
         {
             _connection = connection;
         }

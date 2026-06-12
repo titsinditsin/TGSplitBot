@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Data;
 using Dapper;
 using Npgsql;
 
@@ -9,9 +10,9 @@ namespace TGBotClassLibrary.Repositories.ExpensesRepository
     /// </summary>
     public class ExpensesRepository
     {
-        private readonly NpgsqlConnection _connection;
+        private readonly IDbConnection _connection;
 
-        public ExpensesRepository(NpgsqlConnection connection)
+        public ExpensesRepository(IDbConnection connection)
         {
             _connection = connection;
         }
