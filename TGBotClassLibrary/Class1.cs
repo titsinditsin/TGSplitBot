@@ -109,6 +109,7 @@ namespace TGBotClassLibrary
                 "/payfor" => ParsePayforCommand(parts),
                 "/return" => ParseReturnCommand(parts),
                 "/balance" => ParseBalanceCommand(parts),
+                "/history" => ParseHistoryCommand(parts),
                 _ => new ParsedCommand { CommandType = "unknown" }
             };
         }
@@ -188,9 +189,20 @@ namespace TGBotClassLibrary
 
             return result;
         }
+
+
+        private static ParsedCommand ParseHistoryCommand(string[] parts)
+        {
+            var result = new ParsedCommand { CommandType = "history" };
+            result.Parameters["args"] = parts.Skip(1).ToArray();
+            return result;
+        }
+
     }
-    public class UserHistoryItem {
-        public decimal paid {  get; set; }
+
+    public class UserHistoryItem
+    {
+        public decimal paid { get; set; }
         public decimal owed { get; set; }
         public string e_message { get; set; }
         public DateTime e_time { get; set; }

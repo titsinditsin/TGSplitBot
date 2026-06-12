@@ -85,14 +85,15 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
 
                 await client.SendMessage(
                     group.Id,
-                    "Бот успешно активирован для этого чата!",
+                    "✅ Бот успешно активирован для этого чата!\n" +
+                    "Теперь каждый участник может написать /join, чтобы присоединиться.",
                     cancellationToken: cancellationToken);
             }
             else
             {
                 await client.SendMessage(
                     group.Id,
-                    "Команду /init можно использовать только внутри группового чата.",
+                    "⚠️ Команда /init доступна только в групповом чате.",
                     cancellationToken: cancellationToken);
             }
             break;
@@ -106,8 +107,8 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                 {
                     await client.SendMessage(
                         group.Id,
-                        "Команда /join с параметрами работает только в личных сообщениях с ботом.\n" +
-                        "В групповом чате просто напишите /join чтобы присоединиться.",
+                        "⚠️ Команда /join с параметрами работает только в ЛС.\n" +
+                        "В групповом чате просто напишите /join, чтобы присоединиться.",
                         cancellationToken: cancellationToken);
                     break;
                 }
@@ -116,7 +117,7 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                 {
                     await client.SendMessage(
                         group.Id,
-                        "Бот не инициализирован в этой группе. Сначала выполните команду /init.",
+                        "⚠️ Бот не активирован в этой группе.\nСначала выполните /init.",
                         cancellationToken: cancellationToken);
                     break;
                 }
@@ -127,7 +128,7 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                 {
                     await client.SendMessage(
                         group.Id,
-                        "Вы уже являетесь участником этой группы.",
+                        "ℹ️ Вы уже являетесь участником этой группы.",
                         cancellationToken: cancellationToken);
                 }
                 else
@@ -135,7 +136,7 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                     memberRepo.AddMember(group.Id, user.Id);
                     await client.SendMessage(
                         group.Id,
-                        $"{user.Name} успешно добавлен в список участников.",
+                        $"✅ {user.Name} добавлен(а) в список участников.",
                         cancellationToken: cancellationToken);
                 }
             }
@@ -147,10 +148,10 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                 {
                     await client.SendMessage(
                         group.Id,
-                        "В личных сообщениях /join используется для добавления участника в группу.\n" +
-                        "Формат: /join НазваниеГруппы ИмяУчастника\n" +
-                        "Пример: /join Поездка Sergey\n\n" +
-                        "Чтобы присоединиться самому — напишите /join в групповом чате.",
+                        "📝 *Формат:* `/join НазваниеГруппы ИмяУчастника`\n" +
+                        "📎 *Пример:* `/join Поездка Sergey`\n\n" +
+                        "💡 Чтобы присоединиться самому — напишите /join в групповом чате.",
+                        parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown,
                         cancellationToken: cancellationToken);
                     break;
                 }
@@ -164,7 +165,7 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                 {
                     await client.SendMessage(
                         group.Id,
-                        $"Группа \"{joinGroupName}\" не найдена среди ваших групп. Сначала создайте её командой /group.",
+                        $"❌ Группа \"{joinGroupName}\" не найдена.\nСоздайте её командой /group.",
                         cancellationToken: cancellationToken);
                     break;
                 }
@@ -174,7 +175,7 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                 {
                     await client.SendMessage(
                         group.Id,
-                        $"Участник \"{joinMemberName}\" уже есть в группе \"{joinGroupName}\".",
+                        $"ℹ️ Участник \"{joinMemberName}\" уже есть в группе \"{joinGroupName}\".",
                         cancellationToken: cancellationToken);
                     break;
                 }
@@ -234,7 +235,7 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
             {
                 await client.SendMessage(
                     group.Id,
-                    "Команда /group доступна только в личных сообщениях с ботом.",
+                    "⚠️ Команда /group доступна только в ЛС с ботом.",
                     cancellationToken: cancellationToken);
                 break;
             }
@@ -244,7 +245,9 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
             {
                 await client.SendMessage(
                     group.Id,
-                    "Формат: /group НазваниеГруппы Участник1 Участник2 ...\nПример: /group Поездка Ivan Anna",
+                    "📝 *Формат:* `/group НазваниеГруппы Участник1 Участник2 ...`\n" +
+                    "📎 *Пример:* `/group Поездка Ivan Anna`",
+                    parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown,
                     cancellationToken: cancellationToken);
                 break;
             }
@@ -256,7 +259,9 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
             {
                 await client.SendMessage(
                     group.Id,
-                    "Укажите хотя бы одного участника.\nФормат: /group НазваниеГруппы Участник1 Участник2 ...",
+                    "⚠️ Укажите хотя бы одного участника.\n" +
+                    "📝 *Формат:* `/group НазваниеГруппы Участник1 Участник2 ...`",
+                    parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown,
                     cancellationToken: cancellationToken);
                 break;
             }
@@ -269,7 +274,7 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
             {
                 await client.SendMessage(
                     group.Id,
-                    $"У вас уже есть группа \"{groupName}\". Выберите другое название.",
+                    $"⚠️ Группа \"{groupName}\" уже существует. Выберите другое название.",
                     cancellationToken: cancellationToken);
                 break;
             }
@@ -332,13 +337,13 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                 // Режим группового чата: /paid Сумма Описание
                 if (!groupRepo.Exists(group.Id))
                 {
-                    await client.SendMessage(group.Id, "Бот не инициализирован в этой группе. Сначала выполните команду /init.", cancellationToken: cancellationToken);
+                    await client.SendMessage(group.Id, "⚠️ Бот не активирован в этой группе. Сначала выполните /init.", cancellationToken: cancellationToken);
                     break;
                 }
 
                 if (args.Length < 1 || !decimal.TryParse(args[0], out decimal amount) || amount <= 0)
                 {
-                    await client.SendMessage(group.Id, "Формат: /paid Сумма Описание\nПример: /paid 500 Пицца", cancellationToken: cancellationToken);
+                    await client.SendMessage(group.Id, "📝 *Формат:* `/paid Сумма Описание`\n📎 *Пример:* `/paid 500 Пицца`", parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown, cancellationToken: cancellationToken);
                     break;
                 }
 
@@ -347,7 +352,7 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                 var members = memberRepo.GetMembers(group.Id).ToList();
                 if (members.Count == 0)
                 {
-                    await client.SendMessage(group.Id, "В группе нет участников. Сначала кто-то должен написать /join.", cancellationToken: cancellationToken);
+                    await client.SendMessage(group.Id, "⚠️ В группе нет участников. Кто-то должен написать /join.", cancellationToken: cancellationToken);
                     break;
                 }
 
@@ -363,9 +368,13 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
 
                 await client.SendMessage(
                     group.Id,
-                    $"💰 Расход добавлен: {amount} руб. ({description})\n" +
-                    $"Оплатил(а): {user.Name}\n" +
-                    $"Поделено на {members.Count} участников (по {splitAmount:F2} руб.).",
+                    $"✅ *Расход добавлен*\n" +
+                    $"━━━━━━━━━━━━━━━━━━━━\n" +
+                    $"💰 *Сумма:* {amount} руб.\n" +
+                    $"🛒 *Описание:* {description}\n" +
+                    $"👤 *Оплатил(а):* {user.Name}\n" +
+                    $"👥 *Поделено на:* {members.Count} чел. (по {splitAmount:F2} руб.)",
+                    parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown,
                     cancellationToken: cancellationToken);
             }
             else if (group.GType == ChatType.Private.ToString())
@@ -375,7 +384,9 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                 {
                     await client.SendMessage(
                         group.Id,
-                        "В личных сообщениях формат: /paid НазваниеГруппы КтоЗаплатил Сумма Описание\nПример: /paid Поездка Ivan 500 Бензин",
+                        "📝 *Формат:* `/paid Группа КтоЗаплатил Сумма Описание`\n" +
+                        "📎 *Пример:* `/paid Поездка Ivan 500 Бензин`",
+                        parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown,
                         cancellationToken: cancellationToken);
                     break;
                 }
@@ -385,7 +396,7 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
 
                 if (!decimal.TryParse(args[2], out decimal pAmount) || pAmount <= 0)
                 {
-                    await client.SendMessage(group.Id, "Сумма должна быть положительным числом.", cancellationToken: cancellationToken);
+                    await client.SendMessage(group.Id, "⚠️ Сумма должна быть положительным числом.", cancellationToken: cancellationToken);
                     break;
                 }
 
@@ -394,14 +405,14 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                 long? foundGroupId = groupRepo.FindByNameAndMember(pGroupName, user.Id);
                 if (!foundGroupId.HasValue)
                 {
-                    await client.SendMessage(group.Id, $"Группа \"{pGroupName}\" не найдена среди ваших групп.", cancellationToken: cancellationToken);
+                    await client.SendMessage(group.Id, $"❌ Группа \"{pGroupName}\" не найдена среди ваших групп.", cancellationToken: cancellationToken);
                     break;
                 }
 
                 long? payerId = userRepo.FindByName(payerName);
                 if (!payerId.HasValue || !memberRepo.IsMember(foundGroupId.Value, payerId.Value))
                 {
-                    await client.SendMessage(group.Id, $"Участник \"{payerName}\" не найден в группе \"{pGroupName}\".", cancellationToken: cancellationToken);
+                    await client.SendMessage(group.Id, $"❌ Участник \"{payerName}\" не найден в группе \"{pGroupName}\".", cancellationToken: cancellationToken);
                     break;
                 }
 
@@ -418,9 +429,13 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
 
                 await client.SendMessage(
                     group.Id,
-                    $"💰 Расход добавлен в виртуальную группу \"{pGroupName}\": {pAmount} руб. ({pDesc})\n" +
-                    $"Оплатил(а): {payerName}\n" +
-                    $"Поделено на {pMembers.Count} участников (по {pSplitAmount:F2} руб.).",
+                    $"✅ *Расход добавлен в группу «{pGroupName}»*\n" +
+                    $"━━━━━━━━━━━━━━━━━━━━\n" +
+                    $"💰 *Сумма:* {pAmount} руб.\n" +
+                    $"🛒 *Описание:* {pDesc}\n" +
+                    $"👤 *Оплатил(а):* {payerName}\n" +
+                    $"👥 *Поделено на:* {pMembers.Count} чел. (по {pSplitAmount:F2} руб.)",
+                    parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown,
                     cancellationToken: cancellationToken);
             }
             break;
@@ -435,7 +450,7 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                 if (!groupRepo.Exists(group.Id)) break;
                 if (pfArgs.Length < 2)
                 {
-                    await client.SendMessage(group.Id, "Формат: /payfor ЗаКого Сумма Описание\nПример: /payfor Ivan 300 Кофе", cancellationToken: cancellationToken);
+                    await client.SendMessage(group.Id, "📝 *Формат:* `/payfor ЗаКого Сумма Описание`\n📎 *Пример:* `/payfor Ivan 300 Кофе`", parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown, cancellationToken: cancellationToken);
                     break;
                 }
                 string targetName = pfArgs[0];
@@ -445,7 +460,7 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                 long? targetId = userRepo.FindByName(targetName);
                 if (!targetId.HasValue || !memberRepo.IsMember(group.Id, targetId.Value))
                 {
-                    await client.SendMessage(group.Id, $"Участник \"{targetName}\" не найден в группе.", cancellationToken: cancellationToken);
+                    await client.SendMessage(group.Id, $"❌ Участник \"{targetName}\" не найден в группе.", cancellationToken: cancellationToken);
                     break;
                 }
 
@@ -457,13 +472,13 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                     participantsRepo.AddParticipant(expenseId, targetId.Value, amount, amount);
                 }
 
-                await client.SendMessage(group.Id, $"💰 Вы оплатили {amount} руб. за {targetName} ({description}).", cancellationToken: cancellationToken);
+                await client.SendMessage(group.Id, $"✅ *Оплата за другого участника*\n━━━━━━━━━━━━━━━━━━━━\n💰 *Сумма:* {amount} руб.\n👤 *За кого:* {targetName}\n🛒 *Описание:* {description}", parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown, cancellationToken: cancellationToken);
             }
             else if (group.GType == ChatType.Private.ToString())
             {
                 if (pfArgs.Length < 4)
                 {
-                    await client.SendMessage(group.Id, "В ЛС формат: /payfor НазваниеГруппы КтоЗаплатил ЗаКого Сумма Описание\nПример: /payfor Поездка Ivan Anna 300 Кофе", cancellationToken: cancellationToken);
+                    await client.SendMessage(group.Id, "📝 *Формат:* `/payfor Группа КтоЗаплатил ЗаКого Сумма Описание`\n📎 *Пример:* `/payfor Поездка Ivan Anna 300 Кофе`", parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown, cancellationToken: cancellationToken);
                     break;
                 }
                 string pfGroupName = pfArgs[0];
@@ -487,7 +502,7 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                     participantsRepo.AddParticipant(expenseId, targetId.Value, amount, amount);
                 }
 
-                await client.SendMessage(group.Id, $"💰 В группе \"{pfGroupName}\" {payerName} оплатил(а) {amount} руб. за {targetName} ({description}).", cancellationToken: cancellationToken);
+                await client.SendMessage(group.Id, $"✅ *Оплата за участника в группе «{pfGroupName}»*\n━━━━━━━━━━━━━━━━━━━━\n💰 *Сумма:* {amount} руб.\n👤 *Оплатил(а):* {payerName}\n👤 *За кого:* {targetName}\n🛒 *Описание:* {description}", parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown, cancellationToken: cancellationToken);
             }
             break;
 
@@ -501,7 +516,7 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                 if (!groupRepo.Exists(group.Id)) break;
                 if (rArgs.Length < 2)
                 {
-                    await client.SendMessage(group.Id, "Формат: /return Кому Сумма\nПример: /return Danil 500", cancellationToken: cancellationToken);
+                    await client.SendMessage(group.Id, "📝 *Формат:* `/return Кому Сумма`\n📎 *Пример:* `/return Danil 500`", parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown, cancellationToken: cancellationToken);
                     break;
                 }
                 string targetName = rArgs[0];
@@ -514,13 +529,13 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                 participantsRepo.AddParticipant(expenseId, user.Id, amount, 0);
                 participantsRepo.AddParticipant(expenseId, targetId.Value, 0, amount);
 
-                await client.SendMessage(group.Id, $"💸 Вы вернули {amount} руб. пользователю {targetName}.", cancellationToken: cancellationToken);
+                await client.SendMessage(group.Id, $"✅ *Возврат долга*\n━━━━━━━━━━━━━━━━━━━━\n💸 *Сумма:* {amount} руб.\n👤 *Кому:* {targetName}", parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown, cancellationToken: cancellationToken);
             }
             else if (group.GType == ChatType.Private.ToString())
             {
                 if (rArgs.Length < 4)
                 {
-                    await client.SendMessage(group.Id, "В ЛС формат: /return НазваниеГруппы КтоВозвращает Кому Сумма\nПример: /return Поездка Ivan Danil 500", cancellationToken: cancellationToken);
+                    await client.SendMessage(group.Id, "📝 *Формат:* `/return Группа КтоВозвращает Кому Сумма`\n📎 *Пример:* `/return Поездка Ivan Danil 500`", parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown, cancellationToken: cancellationToken);
                     break;
                 }
                 string rGroupName = rArgs[0];
@@ -539,7 +554,7 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                 participantsRepo.AddParticipant(expenseId, payerId.Value, amount, 0);
                 participantsRepo.AddParticipant(expenseId, targetId.Value, 0, amount);
 
-                await client.SendMessage(group.Id, $"💸 В группе \"{rGroupName}\" {payerName} вернул(а) {amount} руб. пользователю {targetName}.", cancellationToken: cancellationToken);
+                await client.SendMessage(group.Id, $"✅ *Возврат долга в группе «{rGroupName}»*\n━━━━━━━━━━━━━━━━━━━━\n💸 *Сумма:* {amount} руб.\n👤 *Кто вернул:* {payerName}\n👤 *Кому:* {targetName}", parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown, cancellationToken: cancellationToken);
             }
             break;
 
@@ -559,14 +574,14 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
             {
                 if (bArgs.Length < 1)
                 {
-                    await client.SendMessage(group.Id, "В ЛС формат: /balance НазваниеГруппы", cancellationToken: cancellationToken);
+                    await client.SendMessage(group.Id, "📝 *Формат:* `/balance НазваниеГруппы`\n📎 *Пример:* `/balance Поездка`", parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown, cancellationToken: cancellationToken);
                     break;
                 }
                 bGroupName = bArgs[0];
                 long? foundGroupId = groupRepo.FindByNameAndMember(bGroupName, user.Id);
                 if (!foundGroupId.HasValue)
                 {
-                    await client.SendMessage(group.Id, $"Группа \"{bGroupName}\" не найдена.", cancellationToken: cancellationToken);
+                    await client.SendMessage(group.Id, $"❌ Группа \"{bGroupName}\" не найдена.", cancellationToken: cancellationToken);
                     break;
                 }
                 balanceGroupId = foundGroupId.Value;
@@ -621,21 +636,58 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
             var history = participantsRepo.GetUserHistory(group.Id, user.Id);
             string hUserName = "";
             string hText = "";
-            if (!history.Any())
+            if (group.GType == ChatType.Group.ToString() || group.GType == ChatType.Supergroup.ToString())
             {
-                hText = $"У вас нет трат";
-            }
-            else
-            {
-                var sb = new StringBuilder($"Твоя история (всего записей: {history.Count()}):\n\n");
-                foreach (var item in history)
+                if (!history.Any())
                 {
-                    sb.AppendLine($"📅 {item.e_time:dd.MM.yyyy HH:mm} | 🛒 {item.e_message}");
-                    sb.AppendLine($"   Заплатил: {item.paid} | Должен: {item.owed}\n");
+                    hText = "ℹ️ У вас пока нет записей о расходах.";
                 }
-                hText = sb.ToString();
+                else
+                {
+                    var sb = new StringBuilder($"📜 *История расходов ({history.Count()} записей)*\n━━━━━━━━━━━━━━━━━━━━\n\n");
+                    foreach (var item in history)
+                    {
+                        sb.AppendLine($"📅 {item.e_time:dd.MM.yyyy HH:mm} | 🛒 {item.e_message}");
+                        sb.AppendLine($"   💰 Заплатил: {item.paid} руб. | 📌 Должен: {item.owed} руб.\n");
+                    }
+                    hText = sb.ToString();
+                }
+                await client.SendMessage(group.Id, hText, parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown, cancellationToken: cancellationToken);
+                
             }
-            await client.SendMessage(group.Id, hText, parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown, cancellationToken: cancellationToken);
+            else if (group.GType == ChatType.Private.ToString())
+            {
+                if (hArgs.Length < 2)
+                {
+                    hText = "📝 *Формат:* `/history НазваниеГруппы Имя`\n📎 *Пример:* `/history Поездка Ivan`";
+                }
+                else if (hArgs.Length >= 2)
+                {
+                    try
+                    {
+                        string hGroupName = hArgs[0];
+                        string hTargetName = hArgs[1];
+                        long? foundGroupId = groupRepo.FindByNameAndMember(hGroupName, user.Id);
+                        long? targetUserId = userRepo.FindByName(hTargetName);
+                        if (!foundGroupId.HasValue || !targetUserId.HasValue) { hText = "❌ Группа или участник не найдены."; }
+                        else
+                        {
+                            history = participantsRepo.GetUserHistory(foundGroupId.Value, targetUserId.Value);
+                            var sb = new StringBuilder($"📜 *История расходов ({history.Count()} записей)*\n━━━━━━━━━━━━━━━━━━━━\n\n");
+                            foreach (var item in history)
+                            {
+                                sb.AppendLine($"📅 {item.e_time:dd.MM.yyyy HH:mm} | 🛒 {item.e_message}");
+                                sb.AppendLine($"   💰 Заплатил: {item.paid} руб. | 📌 Должен: {item.owed} руб.\n");
+                            }
+                            hText = sb.ToString();
+                        }
+                    }
+                    catch (Exception e) {
+                        hText = $"❌ Ошибка: {e.Message}";
+                    }
+                }
+                await client.SendMessage(group.Id, hText, parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown, cancellationToken: cancellationToken);
+            }
             break;
 
 
