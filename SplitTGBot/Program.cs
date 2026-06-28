@@ -713,5 +713,5 @@ async Task HandleErrorAsync(ITelegramBotClient client, Exception exception, Canc
 
 // Запуск бота
 botClient.StartReceiving(HandleUpdateAsync, HandleErrorAsync);
-Console.WriteLine("Бот запущен. Нажмите Enter для выхода.");
-Console.ReadLine();
+Console.WriteLine("Бот запущен в фоновом режиме Docker...");
+await Task.Delay(-1);

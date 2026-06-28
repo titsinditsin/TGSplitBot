@@ -45,3 +45,7 @@ _ReSharper*/
 
 # JetBrains Rider
 *.sln.iml
+
+# Docker & Secrets
+.env
+pg_data/
