@@ -1,6 +1,6 @@
 using System.Data;
-using Dapper;
-using Npgsql;
+using Microsoft.EntityFrameworkCore;
+
 
 namespace TGBotClassLibrary.Repositories.GroupRepository
 {
@@ -9,54 +9,52 @@ namespace TGBotClassLibrary.Repositories.GroupRepository
     /// </summary>
     public class GroupRepository
     {
-        private readonly IDbConnection _connection;
-
-        public GroupRepository(IDbConnection connection)
+        private readonly SplitDbContext _context;
+        public GroupRepository(SplitDbContext context)
         {
-            _connection = connection;
+            _context = context;
         }
 
         /// <summary>
         /// Регистрация новой группы с защитой от дублирования.
         /// </summary>
-        public void EnsureGroupExists(long groupId, string groupType, string groupName)
+        public async Task EnsureGroupExists(long groupId, string groupType, string groupName)
         {
-            const string sql = @"
-                INSERT INTO groups (g_id, g_type, g_name)
-                VALUES (@GroupId, @GroupType, @GroupName)
-                ON CONFLICT (g_id) DO NOTHING;";
-
-            _connection.Execute(sql, new
+            if (await _context.Groups.FindAsync(groupId) == null)
             {
-                GroupId = groupId,
-                GroupType = groupType,
-                GroupName = groupName ?? string.Empty
-            });
+                await _context.Groups.AddAsync(new Group
+                {
+                    Id = groupId,
+                    GType = groupType,
+                    GName = groupName ?? string.Empty
+                });
+                await _context.SaveChangesAsync();
+            } 
         }
 
         /// <summary>
         /// Проверка, была ли группа инициализирована ранее.
         /// </summary>
-        public bool Exists(long groupId)
+        public async Task<bool> Exists(long groupId)
         {
-            const string sql = "SELECT EXISTS (SELECT 1 FROM groups WHERE g_id = @GroupId);";
-            return _connection.ExecuteScalar<bool>(sql, new { GroupId = groupId });
+            return await _context.Groups.AnyAsync(g => g.Id == groupId);
         }
 
         /// <summary>
         /// Поиск виртуальной группы по названию среди групп конкретного пользователя (без учёта регистра).
         /// Возвращает ID группы или null, если не найдена.
         /// </summary>
-        public long? FindByNameAndMember(string groupName, long userId)
+        public async Task<long?> FindByNameAndMember(string groupName, long userId)
         {
-            const string sql = @"
-                SELECT g.g_id FROM groups g
-                INNER JOIN group_members gm ON g.g_id = gm.g_id
-                WHERE LOWER(g.g_name) = LOWER(@GroupName)
-                  AND g.g_type = 'Virtual'
-                  AND gm.u_id = @UserId
-                LIMIT 1;";
-            return _connection.QuerySingleOrDefault<long?>(sql, new { GroupName = groupName, UserId = userId });
+            var GrId = await _context.GroupMembers.FirstOrDefaultAsync(x => x.group.GType == "Virtual" && x.UId == userId && x.group.GName.ToLower() == groupName.ToLower());
+            if (GrId == null)
+            {
+                return null;
+            }
+            else
+            {
+                return GrId.GId;
+            }
         }
 
         /// <summary>
@@ -65,27 +63,32 @@ namespace TGBotClassLibrary.Repositories.GroupRepository
         /// что исключает конфликты с реальными группами Telegram.
         /// Уникальность гарантируется на уровне БД: INSERT + ON CONFLICT DO NOTHING + проверка rowsAffected.
         /// </summary>
-        public long CreateVirtualGroup(string groupName)
+        public async Task<long> CreateVirtualGroup(string groupName)
         {
-            var random = new Random();
-            const int maxAttempts = 100;
+            // 1. Находим самый маленький уже занятый виртуальный ID (от 1 до 10 млн)
+            long minId = await _context.Groups
+                .Where(g => g.Id <= -1_000_000 && g.Id > -10_000_000)
+                .MinAsync(g => (long?)g.Id) ?? -1_000_000;
 
-            const string sql = @"
-                INSERT INTO groups (g_id, g_type, g_name)
-                VALUES (@GroupId, 'Virtual', @GroupName)
-                ON CONFLICT (g_id) DO NOTHING;";
+            // 2. Следующий ID — это просто предыдущий минимум - 1
+            long newId = minId - 1;
 
-            for (int attempt = 0; attempt < maxAttempts; attempt++)
+            if (newId <= -10_000_000)
             {
-                long id = -random.NextInt64(1_000_000, 10_000_000);
-                int rowsAffected = _connection.Execute(sql, new { GroupId = id, GroupName = groupName ?? string.Empty });
-
-                if (rowsAffected > 0)
-                    return id;
+                throw new InvalidOperationException("Достигнут лимит виртуальных групп.");
             }
 
-            throw new InvalidOperationException(
-                "Не удалось сгенерировать уникальный ID для виртуальной группы.");
+            // 3. Добавляем и сохраняем
+            _context.Groups.Add(new Group
+            {
+                Id = newId,
+                GType = "Virtual",
+                GName = groupName ?? "Unknown"
+            });
+
+            await _context.SaveChangesAsync();
+
+            return newId;
         }
     }
 }

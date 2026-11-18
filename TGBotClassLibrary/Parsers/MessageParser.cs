@@ -5,83 +5,8 @@ using Telegram.Bot.Types;
 namespace TGBotClassLibrary
 {
     /// <summary>
-    /// Представляет пользователя Telegram.
-    /// </summary>
-    public class User
-    {
-        public long Id { get; set; }
-        public string Name { get; set; } = string.Empty;
-    }
-
-    /// <summary>
-    /// Представляет чат (группу или супергруппу) в Telegram.
-    /// </summary>
-    public class Group
-    {
-        public long Id { get; set; }
-        public string GType { get; set; } = string.Empty;
-        public string GName { get; set; } = string.Empty;
-    }
-
-    /// <summary>
-    /// Модель связи (М:М), указывающая, что пользователь состоит в определенной группе.
-    /// </summary>
-    public class GroupMember
-    {
-        public long GId { get; set; }
-        public long UId { get; set; }
-    }
-
-    /// <summary>
-    /// Сущность расхода в конкретной группе.
-    /// </summary>
-    public class Expenses
-    {
-        public long Id { get; set; }
-        public long GId { get; set; }
-        public decimal Amount { get; set; } = 0;
-        public string Description { get; set; } = string.Empty;
-    }
-
-    /// <summary>
-    /// Детализация долей: кто сколько заплатил и кто сколько должен по конкретному расходу.
-    /// </summary>
-    public class ExpenseParticipants
-    {
-        public long EId { get; set; }
-        public long UId { get; set; }
-        public decimal Paid { get; set; }
-        public decimal Owed { get; set; }
-    }
-
-    /// <summary>
-    /// Модель для хранения текущего баланса пользователя.
-    /// </summary>
-    public class UserBalance
-    {
-        public long UserId { get; set; }
-        public string UserName { get; set; } = string.Empty;
-        public decimal Balance { get; set; }
-    }
-
-    /// <summary>
-    /// Модель для описания перевода долга от одного пользователя другому.
-    /// </summary>
-    public class DebtTransfer
-    {
-        public string FromUserName { get; set; } = string.Empty;
-        public string ToUserName { get; set; } = string.Empty;
-        public decimal Amount { get; set; }
-    }
-
-    /// <summary>
     /// Результат парсинга сообщения.
     /// </summary>
-    public class ParsedCommand
-    {
-        public string CommandType { get; set; } = "unknown";
-        public Dictionary<string, object> Parameters { get; set; } = new();
-    }
 
     public static class MessageParser
     {
@@ -200,11 +125,4 @@ namespace TGBotClassLibrary
 
     }
 
-    public class UserHistoryItem
-    {
-        public decimal paid { get; set; }
-        public decimal owed { get; set; }
-        public string e_message { get; set; }
-        public DateTime e_time { get; set; }
-    }
 }

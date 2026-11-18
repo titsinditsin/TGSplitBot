@@ -1,7 +1,9 @@
-using System.Collections.Generic;
 using System.Data;
+using System.Text.RegularExpressions;
 using Dapper;
+using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using Telegram.Bot.Types;
 
 namespace TGBotClassLibrary.Repositories.ExpensesRepository
 {
@@ -10,40 +12,42 @@ namespace TGBotClassLibrary.Repositories.ExpensesRepository
     /// </summary>
     public class ExpensesRepository
     {
-        private readonly IDbConnection _connection;
-
-        public ExpensesRepository(IDbConnection connection)
+        private readonly SplitDbContext _context;
+        public ExpensesRepository(SplitDbContext context)
         {
-            _connection = connection;
+            _context = context;
         }
 
         /// <summary>
         /// Создает новый расход и возвращает его идентификатор (e_id).
         /// </summary>
-        public long AddExpense(long groupId, decimal cost, string message)
+        public async Task<int> AddExpense(long groupId, decimal cost, string message)
         {
-            const string sql = @"
-                INSERT INTO expenses (g_id, e_cost, e_message)
-                VALUES (@GroupId, @Cost, @Message)
-                RETURNING e_id;";
-
-            return _connection.ExecuteScalar<long>(sql, new
+            var expense = new Expenses
             {
-                GroupId = groupId,
-                Cost = cost,
-                Message = message ?? string.Empty
-            });
+                GId = groupId,
+                Amount = cost,
+                Description = message ?? string.Empty
+            };
+            await _context.Expenses.AddAsync(expense);
+            await _context.SaveChangesAsync();
+            return expense.Id;
         }
 
-        public IEnumerable<(long Id, decimal Cost, string Message, long GroupId)> GetExpensesByGroup(long groupId)
+        public async Task<IEnumerable<(int Id, decimal Cost, string Message, long GroupId)>> GetExpensesByGroup(long groupId)
         {
-            const string sql = @"
-                SELECT e_id, e_cost, e_message, g_id
-                FROM expenses
-                WHERE g_id = @GroupId
-                ORDER BY e_id DESC;";
+            var expenses = await _context.Expenses
+                .Where(e => e.GId == groupId)
+                .OrderByDescending(e => e.Id)
+                .Select(e => new
+                {
+                    Id = e.Id,
+                    Cost = e.Amount,
+                    Message = e.Description,
+                    GroupId = e.GId
+                }).ToListAsync();
 
-            return _connection.Query<(long, decimal, string, long)>(sql, new { GroupId = groupId });
+            return expenses.Select(e => (e.Id,e.Cost,e.Message, e.GroupId));
         }
     }
 }

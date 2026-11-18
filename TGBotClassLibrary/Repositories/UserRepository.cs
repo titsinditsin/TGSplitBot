@@ -1,6 +1,6 @@
 using System.Data;
-using Dapper;
-using Npgsql;
+using Microsoft.EntityFrameworkCore;
+
 
 namespace TGBotClassLibrary.Repositories.UserRepository
 {
@@ -9,43 +9,49 @@ namespace TGBotClassLibrary.Repositories.UserRepository
     /// </summary>
     public class UserRepository
     {
-        private readonly IDbConnection _connection;
-
-        public UserRepository(IDbConnection connection)
+        private readonly SplitDbContext _context;
+        public UserRepository(SplitDbContext context)
         {
-            _connection = connection;
+            _context = context;
         }
 
         /// <summary>
         /// Регистрация нового пользователя или обновление имени существующего.
         /// </summary>
-        public void AddOrUpdateUser(long userId, string userName)
+        public async Task AddOrUpdateUser(long userId, string userName)
         {
-            const string sql = @"
-                INSERT INTO users (u_id, u_name)
-                VALUES (@UserId, @UserName)
-                ON CONFLICT (u_id) DO UPDATE SET u_name = EXCLUDED.u_name;";
-
-            _connection.Execute(sql, new { UserId = userId, UserName = userName ?? "Unknown" });
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null)
+            {
+                 _context.Users.Add(new User
+                {
+                    Id = userId,
+                    Name = userName
+                });
+            }
+            else
+            {
+                user.Name = userName;
+            }
+            await _context.SaveChangesAsync();
         }
 
         /// <summary>
         /// Проверка существования пользователя в базе.
         /// </summary>
-        public bool Exists(long userId)
+        public async Task<bool> Exists(long userId)
         {
-            const string sql = "SELECT EXISTS (SELECT 1 FROM users WHERE u_id = @UserId);";
-            return _connection.ExecuteScalar<bool>(sql, new { UserId = userId });
+            return await _context.Users.AnyAsync(x => x.Id == userId);
         }
 
         /// <summary>
         /// Поиск пользователя по зарегистрированному имени (без учёта регистра).
         /// Возвращает ID пользователя или null, если не найден.
         /// </summary>
-        public long? FindByName(string userName)
+        public async Task<long?> FindByName(string userName)
         {
-            const string sql = "SELECT u_id FROM users WHERE LOWER(u_name) = LOWER(@UserName) LIMIT 1;";
-            return _connection.QuerySingleOrDefault<long?>(sql, new { UserName = userName });
+            var user = await _context.Users.FirstOrDefaultAsync(x => x.Name.ToLower() == userName.ToLower());
+            return user?.Id;
         }
 
         /// <summary>
@@ -54,27 +60,31 @@ namespace TGBotClassLibrary.Repositories.UserRepository
         /// что исключает конфликты с реальными пользователями Telegram.
         /// Уникальность гарантируется на уровне БД: INSERT + ON CONFLICT DO NOTHING + проверка rowsAffected.
         /// </summary>
-        public long CreateVirtualUser(string userName)
+        public async Task<long> CreateVirtualUser(string userName)
         {
-            var random = new Random();
-            const int maxAttempts = 100;
+            // 1. Находим самый большой уже занятый виртуальный ID (от 1 до 10 млн)
+            long maxId = await _context.Users
+                .Where(u => u.Id >= 1_000_000 && u.Id < 10_000_000)
+                .MaxAsync(u => (long?)u.Id) ?? 1_000_000;
 
-            const string sql = @"
-                INSERT INTO users (u_id, u_name)
-                VALUES (@UserId, @UserName)
-                ON CONFLICT (u_id) DO NOTHING;";
+            // 2. Следующий ID — это просто предыдущий максимум + 1
+            long newId = maxId + 1;
 
-            for (int attempt = 0; attempt < maxAttempts; attempt++)
+            if (newId >= 10_000_000)
             {
-                long id = random.NextInt64(1_000_000, 10_000_000);
-                int rowsAffected = _connection.Execute(sql, new { UserId = id, UserName = userName ?? "Unknown" });
-
-                if (rowsAffected > 0)
-                    return id;
+                throw new InvalidOperationException("Достигнут лимит виртуальных пользователей.");
             }
 
-            throw new InvalidOperationException(
-                "Не удалось сгенерировать уникальный ID для виртуального пользователя.");
+            // 3. Добавляем и сохраняем
+            _context.Users.Add(new User
+            {
+                Id = newId,
+                Name = userName ?? "Unknown"
+            });
+
+            await _context.SaveChangesAsync();
+
+            return newId;
         }
     }
 }

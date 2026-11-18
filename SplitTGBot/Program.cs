@@ -1,6 +1,6 @@
 using System.Linq;
 using System.Text;
-using Npgsql;
+using Microsoft.EntityFrameworkCore;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -54,17 +54,20 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
     var parsedCommand = MessageParser.Parse(messageText, update.Message.Entities);
 
     // Открываем одно соединение с БД для обработки текущего запроса
-    using var connection = new NpgsqlConnection(connectionString);
-    var userRepo = new UserRepository(connection);
-    var groupRepo = new GroupRepository(connection);
-    var memberRepo = new GroupMemberRepository(connection);
-    var expensesRepo = new ExpensesRepository(connection);
-    var participantsRepo = new ExpenseParticipantsRepository(connection);
+    var options = new DbContextOptionsBuilder<SplitDbContext>()
+            .UseNpgsql(connectionString)
+            .Options;
+    using var context = new SplitDbContext(options);
+    var userRepo = new UserRepository(context);
+    var groupRepo = new GroupRepository(context);
+    var memberRepo = new GroupMemberRepository(context);
+    var expensesRepo = new ExpensesRepository(context);
+    var participantsRepo = new ExpenseParticipantsRepository(context);
 
     switch (parsedCommand.CommandType)
     {
         case "start":
-            userRepo.AddOrUpdateUser(user.Id, user.Name);
+            await userRepo.AddOrUpdateUser(user.Id, user.Name);
             await client.SendMessage(
                 group.Id,
                 $"👋 Привет, {user.Name}!\n\n" +
@@ -80,8 +83,8 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
             // Инициализация работает только в групповых чатах
             if (group.GType == ChatType.Group.ToString() || group.GType == ChatType.Supergroup.ToString())
             {
-                groupRepo.EnsureGroupExists(group.Id, group.GType, group.GName);
-                memberRepo.AddMember(group.Id, user.Id);
+                await groupRepo.EnsureGroupExists(group.Id, group.GType, group.GName);
+                await memberRepo.AddMember(group.Id, user.Id);
 
                 await client.SendMessage(
                     group.Id,
@@ -113,7 +116,7 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                     break;
                 }
 
-                if (!groupRepo.Exists(group.Id))
+                if (!await groupRepo.Exists(group.Id))
                 {
                     await client.SendMessage(
                         group.Id,
@@ -122,9 +125,9 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                     break;
                 }
 
-                userRepo.AddOrUpdateUser(user.Id, user.Name);
+                await userRepo.AddOrUpdateUser(user.Id, user.Name);
 
-                if (memberRepo.IsMember(group.Id, user.Id))
+                if (await memberRepo.IsMember(group.Id, user.Id))
                 {
                     await client.SendMessage(
                         group.Id,
@@ -133,7 +136,7 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                 }
                 else
                 {
-                    memberRepo.AddMember(group.Id, user.Id);
+                    await memberRepo.AddMember(group.Id, user.Id);
                     await client.SendMessage(
                         group.Id,
                         $"✅ {user.Name} добавлен(а) в список участников.",
@@ -160,7 +163,7 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                 string joinMemberName = (string)parsedCommand.Parameters["member_name"];
 
                 // Ищем виртуальную группу по названию среди групп этого пользователя
-                long? foundGroupId = groupRepo.FindByNameAndMember(joinGroupName, user.Id);
+                long? foundGroupId = await groupRepo.FindByNameAndMember(joinGroupName, user.Id);
                 if (!foundGroupId.HasValue)
                 {
                     await client.SendMessage(
@@ -171,7 +174,7 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                 }
 
                 // Проверяем, нет ли уже участника с таким именем в группе
-                if (memberRepo.MemberNameExistsInGroup(foundGroupId.Value, joinMemberName))
+                if (await memberRepo.MemberNameExistsInGroup(foundGroupId.Value, joinMemberName))
                 {
                     await client.SendMessage(
                         group.Id,
@@ -181,8 +184,8 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                 }
 
                 // Создаём виртуального участника и добавляем в группу
-                long newMemberId = userRepo.CreateVirtualUser(joinMemberName);
-                memberRepo.AddMember(foundGroupId.Value, newMemberId);
+                long newMemberId = await userRepo.CreateVirtualUser(joinMemberName);
+                await memberRepo.AddMember(foundGroupId.Value, newMemberId);
 
                 await client.SendMessage(
                     group.Id,
@@ -272,10 +275,10 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
             }
 
             // Регистрируем/обновляем текущего пользователя
-            userRepo.AddOrUpdateUser(user.Id, user.Name);
+            await userRepo.AddOrUpdateUser(user.Id, user.Name);
 
             // Проверяем, нет ли у пользователя группы с таким названием
-            if (groupRepo.FindByNameAndMember(groupName, user.Id).HasValue)
+            if (await groupRepo.FindByNameAndMember(groupName, user.Id) != null)
             {
                 await client.SendMessage(
                     group.Id,
@@ -297,18 +300,18 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                 .ToList();
 
             // Создаём виртуальную группу с гарантированно уникальным ID
-            long virtualGroupId = groupRepo.CreateVirtualGroup(groupName);
+            long virtualGroupId = await groupRepo.CreateVirtualGroup(groupName);
 
             // Добавляем создателя группы как участника
-            memberRepo.AddMember(virtualGroupId, user.Id);
+            await memberRepo.AddMember(virtualGroupId, user.Id);
 
             // Создаём виртуальных пользователей и добавляем их в группу
             var createdMembers = new List<(string Name, long Id)>();
 
             foreach (var memberName in uniqueNames)
             {
-                long virtualUserId = userRepo.CreateVirtualUser(memberName);
-                memberRepo.AddMember(virtualGroupId, virtualUserId);
+                long virtualUserId = await userRepo.CreateVirtualUser(memberName);
+                await memberRepo.AddMember(virtualGroupId, virtualUserId);
                 createdMembers.Add((memberName, virtualUserId));
             }
 
@@ -335,12 +338,12 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
 
         case "paid":
             var args = (string[])parsedCommand.Parameters["args"];
-            userRepo.AddOrUpdateUser(user.Id, user.Name);
+            await userRepo.AddOrUpdateUser(user.Id, user.Name);
 
             if (group.GType == ChatType.Group.ToString() || group.GType == ChatType.Supergroup.ToString())
             {
                 // Режим группового чата: /paid Сумма Описание
-                if (!groupRepo.Exists(group.Id))
+                if (!await groupRepo.Exists(group.Id))
                 {
                     await client.SendMessage(group.Id, "⚠️ Бот не активирован в этой группе. Сначала выполните /init.", cancellationToken: cancellationToken);
                     break;
@@ -354,21 +357,21 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
 
                 string description = args.Length > 1 ? string.Join(" ", args.Skip(1)) : "Без описания";
 
-                var members = memberRepo.GetMembers(group.Id).ToList();
+                var members = (await memberRepo.GetMembers(group.Id)).ToList();
                 if (members.Count == 0)
                 {
                     await client.SendMessage(group.Id, "⚠️ В группе нет участников. Кто-то должен написать /join.", cancellationToken: cancellationToken);
                     break;
                 }
 
-                long expenseId = expensesRepo.AddExpense(group.Id, amount, description);
+                long expenseId = await expensesRepo.AddExpense(group.Id, amount, description);
                 decimal splitAmount = amount / members.Count;
 
                 foreach (var member in members)
                 {
                     decimal paid = member.UserId == user.Id ? amount : 0;
                     decimal owed = splitAmount;
-                    participantsRepo.AddParticipant(expenseId, member.UserId, paid, owed);
+                    await participantsRepo.AddParticipant((int)expenseId, member.UserId, paid, owed);
                 }
 
                 await client.SendMessage(
@@ -407,29 +410,29 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
 
                 string pDesc = args.Length > 3 ? string.Join(" ", args.Skip(3)) : "Без описания";
 
-                long? foundGroupId = groupRepo.FindByNameAndMember(pGroupName, user.Id);
+                long? foundGroupId = await groupRepo.FindByNameAndMember(pGroupName, user.Id);
                 if (!foundGroupId.HasValue)
                 {
                     await client.SendMessage(group.Id, $"❌ Группа \"{pGroupName}\" не найдена среди ваших групп.", cancellationToken: cancellationToken);
                     break;
                 }
 
-                long? payerId = userRepo.FindByName(payerName);
-                if (!payerId.HasValue || !memberRepo.IsMember(foundGroupId.Value, payerId.Value))
+                long? payerId = await userRepo.FindByName(payerName);
+                if (!payerId.HasValue || !await memberRepo.IsMember(foundGroupId.Value, payerId.Value))
                 {
                     await client.SendMessage(group.Id, $"❌ Участник \"{payerName}\" не найден в группе \"{pGroupName}\".", cancellationToken: cancellationToken);
                     break;
                 }
 
-                var pMembers = memberRepo.GetMembers(foundGroupId.Value).ToList();
-                long pExpenseId = expensesRepo.AddExpense(foundGroupId.Value, pAmount, pDesc);
+                var pMembers = (await memberRepo.GetMembers(foundGroupId.Value)).ToList();
+                long pExpenseId = await expensesRepo.AddExpense(foundGroupId.Value, pAmount, pDesc);
                 decimal pSplitAmount = pAmount / pMembers.Count;
 
                 foreach (var member in pMembers)
                 {
                     decimal paid = member.UserId == payerId.Value ? pAmount : 0;
                     decimal owed = pSplitAmount;
-                    participantsRepo.AddParticipant(pExpenseId, member.UserId, paid, owed);
+                    await participantsRepo.AddParticipant((int)pExpenseId, member.UserId, paid, owed);
                 }
 
                 await client.SendMessage(
@@ -448,11 +451,11 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
 
         case "payfor":
             var pfArgs = (string[])parsedCommand.Parameters["args"];
-            userRepo.AddOrUpdateUser(user.Id, user.Name);
+            await userRepo.AddOrUpdateUser(user.Id, user.Name);
 
             if (group.GType == ChatType.Group.ToString() || group.GType == ChatType.Supergroup.ToString())
             {
-                if (!groupRepo.Exists(group.Id)) break;
+                if (!await groupRepo.Exists(group.Id)) break;
                 if (pfArgs.Length < 2)
                 {
                     await client.SendMessage(group.Id, "📝 *Формат:* `/payfor ЗаКого Сумма Описание`\n📎 *Пример:* `/payfor Ivan 300 Кофе`", parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown, cancellationToken: cancellationToken);
@@ -462,20 +465,21 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                 if (!decimal.TryParse(pfArgs[1], out decimal amount) || amount <= 0) break;
                 string description = pfArgs.Length > 2 ? string.Join(" ", pfArgs.Skip(2)) : "Без описания";
 
-                long? targetId = userRepo.FindByName(targetName);
-                if (!targetId.HasValue || !memberRepo.IsMember(group.Id, targetId.Value))
+                long? targetId = await userRepo.FindByName(targetName);
+                if (!targetId.HasValue || !await memberRepo.IsMember(group.Id, targetId.Value))
                 {
                     await client.SendMessage(group.Id, $"❌ Участник \"{targetName}\" не найден в группе.", cancellationToken: cancellationToken);
                     break;
                 }
+                int expenseId = await expensesRepo.AddExpense(group.Id, amount, description);
 
-                long expenseId = expensesRepo.AddExpense(group.Id, amount, description);
-                participantsRepo.AddParticipant(expenseId, user.Id, amount, 0);
-                if (user.Id != targetId.Value) {
-                    participantsRepo.AddParticipant(expenseId, targetId.Value, 0, amount);
-                } else {
-                    participantsRepo.AddParticipant(expenseId, targetId.Value, amount, amount);
-                }
+                await participantsRepo.AddParticipant(expenseId,user.Id,amount,0);
+
+                if (user.Id != targetId.Value)
+                    await participantsRepo.AddParticipant(expenseId,targetId.Value,0,amount);
+                else
+                    await participantsRepo.AddParticipant(expenseId,targetId.Value,amount,amount);
+                
 
                 await client.SendMessage(group.Id, $"✅ *Оплата за другого участника*\n━━━━━━━━━━━━━━━━━━━━\n💰 *Сумма:* {amount} руб.\n👤 *За кого:* {targetName}\n🛒 *Описание:* {description}", parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown, cancellationToken: cancellationToken);
             }
@@ -492,19 +496,19 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                 if (!decimal.TryParse(pfArgs[3], out decimal amount) || amount <= 0) break;
                 string description = pfArgs.Length > 4 ? string.Join(" ", pfArgs.Skip(4)) : "Без описания";
 
-                long? foundGroupId = groupRepo.FindByNameAndMember(pfGroupName, user.Id);
+                long? foundGroupId = await groupRepo.FindByNameAndMember(pfGroupName, user.Id);
                 if (!foundGroupId.HasValue) break;
                 
-                long? payerId = userRepo.FindByName(payerName);
-                long? targetId = userRepo.FindByName(targetName);
+                long? payerId = await userRepo.FindByName(payerName);
+                long? targetId = await userRepo.FindByName(targetName);
                 if (!payerId.HasValue || !targetId.HasValue) break;
 
-                long expenseId = expensesRepo.AddExpense(foundGroupId.Value, amount, description);
-                participantsRepo.AddParticipant(expenseId, payerId.Value, amount, 0);
-                if (payerId.Value != targetId.Value) {
-                    participantsRepo.AddParticipant(expenseId, targetId.Value, 0, amount);
-                } else {
-                    participantsRepo.AddParticipant(expenseId, targetId.Value, amount, amount);
+                int expenseId = await expensesRepo.AddExpense(foundGroupId.Value, amount, description);
+                await participantsRepo.AddParticipant(expenseId,payerId.Value,amount,0);
+                if (payerId.Value != targetId.Value)
+                    await participantsRepo.AddParticipant(expenseId,targetId.Value,0,amount);
+                 else {
+                    await participantsRepo.AddParticipant(expenseId,targetId.Value,amount,amount);
                 }
 
                 await client.SendMessage(group.Id, $"✅ *Оплата за участника в группе «{pfGroupName}»*\n━━━━━━━━━━━━━━━━━━━━\n💰 *Сумма:* {amount} руб.\n👤 *Оплатил(а):* {payerName}\n👤 *За кого:* {targetName}\n🛒 *Описание:* {description}", parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown, cancellationToken: cancellationToken);
@@ -514,11 +518,11 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
 
         case "return":
             var rArgs = (string[])parsedCommand.Parameters["args"];
-            userRepo.AddOrUpdateUser(user.Id, user.Name);
+            await userRepo.AddOrUpdateUser(user.Id, user.Name);
 
             if (group.GType == ChatType.Group.ToString() || group.GType == ChatType.Supergroup.ToString())
             {
-                if (!groupRepo.Exists(group.Id)) break;
+                if (!await groupRepo.Exists(group.Id)) break;
                 if (rArgs.Length < 2)
                 {
                     await client.SendMessage(group.Id, "📝 *Формат:* `/return Кому Сумма`\n📎 *Пример:* `/return Danil 500`", parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown, cancellationToken: cancellationToken);
@@ -527,12 +531,12 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                 string targetName = rArgs[0];
                 if (!decimal.TryParse(rArgs[1], out decimal amount) || amount <= 0) break;
 
-                long? targetId = userRepo.FindByName(targetName);
-                if (!targetId.HasValue || !memberRepo.IsMember(group.Id, targetId.Value)) break;
+                long? targetId = await userRepo.FindByName(targetName);
+                if (!targetId.HasValue || !await memberRepo.IsMember(group.Id, targetId.Value)) break;
 
-                long expenseId = expensesRepo.AddExpense(group.Id, amount, "Возврат долга");
-                participantsRepo.AddParticipant(expenseId, user.Id, amount, 0);
-                participantsRepo.AddParticipant(expenseId, targetId.Value, 0, amount);
+                int expenseId = await expensesRepo.AddExpense(group.Id, amount, "Возврат долга");
+                await participantsRepo.AddParticipant(expenseId, user.Id, amount, 0);
+                await participantsRepo.AddParticipant(expenseId, targetId.Value, 0, amount);
 
                 await client.SendMessage(group.Id, $"✅ *Возврат долга*\n━━━━━━━━━━━━━━━━━━━━\n💸 *Сумма:* {amount} руб.\n👤 *Кому:* {targetName}", parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown, cancellationToken: cancellationToken);
             }
@@ -548,16 +552,16 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                 string targetName = rArgs[2];
                 if (!decimal.TryParse(rArgs[3], out decimal amount) || amount <= 0) break;
 
-                long? foundGroupId = groupRepo.FindByNameAndMember(rGroupName, user.Id);
+                long? foundGroupId = await groupRepo.FindByNameAndMember(rGroupName, user.Id);
                 if (!foundGroupId.HasValue) break;
 
-                long? payerId = userRepo.FindByName(payerName);
-                long? targetId = userRepo.FindByName(targetName);
+                long? payerId = await userRepo.FindByName(payerName);
+                long? targetId = await userRepo.FindByName(targetName);
                 if (!payerId.HasValue || !targetId.HasValue) break;
 
-                long expenseId = expensesRepo.AddExpense(foundGroupId.Value, amount, "Возврат долга");
-                participantsRepo.AddParticipant(expenseId, payerId.Value, amount, 0);
-                participantsRepo.AddParticipant(expenseId, targetId.Value, 0, amount);
+                int expenseId = await expensesRepo.AddExpense(foundGroupId.Value, amount, "Возврат долга");
+                await participantsRepo.AddParticipant(expenseId, payerId.Value, amount, 0);
+                await participantsRepo.AddParticipant(expenseId, targetId.Value, 0, amount);
 
                 await client.SendMessage(group.Id, $"✅ *Возврат долга в группе «{rGroupName}»*\n━━━━━━━━━━━━━━━━━━━━\n💸 *Сумма:* {amount} руб.\n👤 *Кто вернул:* {payerName}\n👤 *Кому:* {targetName}", parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown, cancellationToken: cancellationToken);
             }
@@ -571,7 +575,7 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
 
             if (group.GType == ChatType.Group.ToString() || group.GType == ChatType.Supergroup.ToString())
             {
-                if (!groupRepo.Exists(group.Id)) break;
+                if (!await groupRepo.Exists(group.Id)) break;
                 balanceGroupId = group.Id;
                 bGroupName = group.GName;
             }
@@ -583,7 +587,7 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                     break;
                 }
                 bGroupName = bArgs[0];
-                long? foundGroupId = groupRepo.FindByNameAndMember(bGroupName, user.Id);
+                long? foundGroupId = await groupRepo.FindByNameAndMember(bGroupName, user.Id);
                 if (!foundGroupId.HasValue)
                 {
                     await client.SendMessage(group.Id, $"❌ Группа \"{bGroupName}\" не найдена.", cancellationToken: cancellationToken);
@@ -594,8 +598,8 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
 
             if (balanceGroupId == 0) break;
 
-            var balances = participantsRepo.GetBalancesByGroup(balanceGroupId).ToList();
-            var expenses = expensesRepo.GetExpensesByGroup(balanceGroupId).ToList();
+            var balances = await participantsRepo.GetBalancesByGroup(balanceGroupId);
+            var expenses = await expensesRepo.GetExpensesByGroup(balanceGroupId);
             decimal totalExpenses = expenses.Where(e => e.Message != "Возврат долга").Sum(e => e.Cost);
 
             string bText = $"📊 **Баланс группы «{bGroupName}»**\n━━━━━━━━━━━━━━━━━━━━\n💸 **Всего потрачено:** {totalExpenses:F2} руб.\n\n👤 **Текущий статус:**\n";
@@ -638,7 +642,7 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
 
         case "history":
             var hArgs = (string[])parsedCommand.Parameters["args"];
-            var history = participantsRepo.GetUserHistory(group.Id, user.Id);
+            var history = await participantsRepo.GetUserHistory(group.Id, user.Id);
             string hText = "";
             if (group.GType == ChatType.Group.ToString() || group.GType == ChatType.Supergroup.ToString())
             {
@@ -671,12 +675,12 @@ async Task HandleUpdateAsync(ITelegramBotClient client, Update update, Cancellat
                     {
                         string hGroupName = hArgs[0];
                         string hTargetName = hArgs[1];
-                        long? foundGroupId = groupRepo.FindByNameAndMember(hGroupName, user.Id);
-                        long? targetUserId = userRepo.FindByName(hTargetName);
+                        long? foundGroupId = await groupRepo.FindByNameAndMember(hGroupName, user.Id);
+                        long? targetUserId = await userRepo.FindByName(hTargetName);
                         if (!foundGroupId.HasValue || !targetUserId.HasValue) { hText = "❌ Группа или участник не найдены."; }
                         else
                         {
-                            history = participantsRepo.GetUserHistory(foundGroupId.Value, targetUserId.Value);
+                            history = await participantsRepo.GetUserHistory(foundGroupId.Value, targetUserId.Value);
                             var sb = new StringBuilder($"📜 *История расходов ({history.Count()} записей)*\n━━━━━━━━━━━━━━━━━━━━\n\n");
                             foreach (var item in history)
                             {
@@ -714,4 +718,4 @@ async Task HandleErrorAsync(ITelegramBotClient client, Exception exception, Canc
 // Запуск бота
 botClient.StartReceiving(HandleUpdateAsync, HandleErrorAsync);
 Console.WriteLine("Бот запущен в фоновом режиме Docker...");
-await Task.Delay(-1);
+await Task.Delay(-1);

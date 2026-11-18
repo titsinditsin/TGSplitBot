@@ -13,7 +13,6 @@ Telegram-бот для учёта совместных расходов внут
 | PostgreSQL | Хранение данных |
 | Dapper | Работа с базой (микро-ORM) |
 | Telegram.Bot | Взаимодействие с Telegram API |
-| Docker & Compose | Контейнеризация и оркестрация сервисов |
 | Переменные окружения | Защита секретов (.env) |
 
 ---
@@ -34,47 +33,14 @@ Telegram-бот для учёта совместных расходов внут
 
 ---
 
-## Быстрый запуск через Docker (Рекомендуется )
-
-Самый простой и профессиональный способ развернуть бота вместе с базой данных без ручной установки PostgreSQL.
-
-### 1. Клонирование репозитория
-```bash
-git clone https://github.com/titsinditsin/TGSplitBot.git
-cd TGSplitBot
-```
-
-### 2. Настройка секретов
-Скопируйте пример файла конфигурации и вставьте токен вашего бота от `@BotFather`:
-```bash
-cp .env.example .env
-```
-Откройте созданный файл `.env` и впишите ваш токен:
-```env
-BOT_TOKEN=7123456789:AAH...
-```
-
-### 3. Запуск одной командой
-Запустите оркестрацию контейнеров (База данных PostgreSQL автоматически инициализируется по скрипту `schema.sql`, а бот соберется через Multi-stage build):
-```bash
-docker compose up -d
-```
-Бот запущен и готов к работе! Для просмотра логов используйте команду `docker logs splitbot_app`.
-
----
-
-## Ручной запуск (Без Docker)
+## Запуск
 
 ### 1. База данных
 Установите PostgreSQL и создайте базу (например, `splitbotdb`).
-Затем выполните скрипт для создания таблиц:
-
-```bash
-psql -U postgres -d splitbotdb -f schema.sql
-```
+Затем выполните скрипт для создания таблиц из `SplitTGBot/schema.sql`.
 
 ### 2. Переменные окружения
-Задайте секреты через переменные окружения (Windows):
+Задайте секреты через переменные окружения (Windows) или файл `.env`:
 
 ```cmd
 setx DB_CONNECTION "Host=localhost;Port=5432;Database=splitbotdb;Username=postgres;Password=ваш_пароль"
@@ -87,25 +53,17 @@ setx BOT_TOKEN "токен_от_BotFather"
 dotnet run --project SplitTGBot
 ```
 
-Бот запустится и будет принимать сообщения.
-
-
 ## Структура проекта
 ---
 ```text
 SplitTGBot.slnx
- Dockerfile                 Multi-stage сборка C# приложения
- docker-compose.yml         Оркестрация бота и БД PostgreSQL
- .env.example               Пример файла переменных окружения
  SplitTGBot/                Консольное приложение (основной проект)
     Program.cs             Точка входа и обработка сообщений
+    schema.sql             SQL-схема базы данных
     SplitTGBot.csproj
  TGBotClassLibrary/         Библиотека классов
-    Models/                Модели данных (User, Group, ...)
+    Models/                Модели данных
     Repositories/          Репозитории для работы с БД
-    MessageParser.cs       Парсер команд
- schema.sql                 SQL-схема базы данных
- .gitignore
  README.md
 ```
 

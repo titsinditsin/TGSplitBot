@@ -1,7 +1,9 @@
 using System.Collections.Generic;
 using System.Data;
-using Dapper;
+using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using Telegram.Bot.Types;
+
 
 namespace TGBotClassLibrary.Repositories.ExpenseParticipantsRepository
 {
@@ -10,60 +12,66 @@ namespace TGBotClassLibrary.Repositories.ExpenseParticipantsRepository
     /// </summary>
     public class ExpenseParticipantsRepository
     {
-        private readonly IDbConnection _connection;
+        private readonly SplitDbContext _context;
 
-        public ExpenseParticipantsRepository(IDbConnection connection)
+        public ExpenseParticipantsRepository(SplitDbContext context)
         {
-            _connection = connection;
+            _context = context;
         }
 
         /// <summary>
         /// Добавляет участника в чек (с указанием внесенной суммы и размера долга).
         /// </summary>
-        public void AddParticipant(long expenseId, long userId, decimal paid, decimal owed)
+        public async Task AddParticipant(int expenseId, long userId, decimal paid, decimal owed)
         {
-            const string sql = @"
-                INSERT INTO expense_participants (e_id, u_id, paid, owed)
-                VALUES (@ExpenseId, @UserId, @Paid, @Owed)
-                ON CONFLICT (e_id, u_id) DO NOTHING;";
-
-            _connection.Execute(sql, new
+            _context.ExpenseParticipants.Add(new ExpenseParticipants
             {
-                ExpenseId = expenseId,
-                UserId = userId,
+                EId = expenseId,
+                UId = userId,
                 Paid = paid,
                 Owed = owed
             });
+            await _context.SaveChangesAsync();
         }
 
-        public IEnumerable<(long UserId, decimal Paid, decimal Owed)> GetParticipants(long expenseId)
+        public async Task<List<ExpenseParticipants>> GetParticipants(int expenseId)
         {
-            const string sql = "SELECT u_id, paid, owed FROM expense_participants WHERE e_id = @ExpenseId;";
-            return _connection.Query<(long, decimal, decimal)>(sql, new { ExpenseId = expenseId });
+            return await _context.ExpenseParticipants.Where(x => x.EId == expenseId).ToListAsync();
         }
 
         /// <summary>
         /// Возвращает общий баланс по каждому участнику группы (сумма paid - сумма owed).
         /// Положительный баланс означает, что пользователю должны. Отрицательный - он должен.
         /// </summary>
-        public IEnumerable<UserBalance> GetBalancesByGroup(long groupId)
+        public async Task<List<UserBalance>>  GetBalancesByGroup(long groupId)
         {
-            const string sql = @"
-                SELECT u.u_id as UserId, u.u_name as UserName, COALESCE(SUM(ep.paid - ep.owed), 0) as Balance
-                FROM users u
-                INNER JOIN group_members gm ON u.u_id = gm.u_id
-                LEFT JOIN expenses e ON e.g_id = gm.g_id
-                LEFT JOIN expense_participants ep ON ep.e_id = e.e_id AND ep.u_id = u.u_id
-                WHERE gm.g_id = @GroupId
-                GROUP BY u.u_id, u.u_name;";
-            
-            return _connection.Query<UserBalance>(sql, new { GroupId = groupId });
+
+            return await _context.GroupMembers
+                // 1. Фильтруем участников:
+                .Where(gm => gm.GId == groupId)
+                .Select(gm => new UserBalance
+                {
+                    UserId = gm.UId,
+                    UserName = gm.user.Name,
+                    Balance = _context.ExpenseParticipants.Where(ep => ep.UId == gm.UId && ep.expenses.GId == groupId).Sum(ep => (decimal?)(ep.Paid - ep.Owed)) ?? 0
+                }).ToListAsync();
         }
-        public IEnumerable<UserHistoryItem> GetUserHistory(long groupId, long userId)
+        public async Task<List<UserHistoryItem>> GetUserHistory(long groupId, long userId)
         {
-            const string sql = @"SELECT paid, owed, e_message, e_time  FROM expense_participants JOIN expenses ON expenses.e_id =
-  expense_participants.e_id WHERE g_id = @group_id AND u_id = @userId;";
-            return _connection.Query<UserHistoryItem>(sql, new { group_id = groupId, userId = userId }); ;
+            return await _context.ExpenseParticipants
+                // 1. Фильтруем участников:
+                .Where(ep => ep.expenses.GId == groupId && ep.UId == userId)
+                    
+                // 2. Упаковываем в DTO истории:
+                .Select(ep => new UserHistoryItem
+                {
+                    paid = ep.Paid,
+                    owed = ep.Owed,
+                    e_message = ep.expenses.Description // достали текст чека напрямую через навигацию!
+                })
+
+                // 3. Отправляем в базу:
+                .ToListAsync();
         }
     }
 }
